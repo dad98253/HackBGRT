@@ -69,14 +69,14 @@ void RandomSeedAuto(void) {
 }
 
 void WaitKey(void) {
-	ST->ConIn->Reset(ST->ConIn, FALSE);
+	uefi_call_wrapper(ST->ConIn->Reset,2,ST->ConIn, FALSE);
 	WaitForSingleEvent(ST->ConIn->WaitForKey, 0);
 }
 
 EFI_INPUT_KEY ReadKey(void) {
 	WaitKey();
 	EFI_INPUT_KEY key = {0};
-	ST->ConIn->ReadKeyStroke(ST->ConIn, &key);
+	uefi_call_wrapper(ST->ConIn->ReadKeyStroke,2,ST->ConIn, &key);
 	return key;
 }
 
@@ -84,32 +84,98 @@ void* LoadFileWithPadding(EFI_FILE_HANDLE dir, const CHAR16* path, UINTN* size_p
 	EFI_STATUS e;
 	EFI_FILE_HANDLE handle;
 
-	e = dir->Open(dir, &handle, (CHAR16*) path, EFI_FILE_MODE_READ, 0);
+
+	Print(L"LoadFileWithPadding: path        : %s\n", path );
+	Print(L"LoadFileWithPadding: dir file handle : %0x\n", dir );
+
+
+
+
+
+//	e = dir->Open(dir, &handle, (CHAR16*) path, EFI_FILE_MODE_READ, 0);
+	e = uefi_call_wrapper(dir->Open,5, dir, &handle, (CHAR16*) path, EFI_FILE_MODE_READ, 0);
 	if (EFI_ERROR(e)) {
+		Print(L"LoadFileWithPadding: Open failed, error = %0x\n", e );
+		if (e == EFI_SUCCESS) Print(L" The file was opened.\n");
+		if (e == EFI_NOT_FOUND ) Print(L" The specified file could not be found on the device.\n");
+		if (e == EFI_NO_MEDIA ) Print(L" The device has no medium.\n");
+		if (e == EFI_MEDIA_CHANGED ) Print(L" The device has a different medium in it or the medium is no longer supported.\n");
+		if (e == EFI_DEVICE_ERROR ) Print(L" The device reported an error.\n");
+		if (e == EFI_VOLUME_CORRUPTED ) Print(L" The file system structures are corrupted.\n");
+		if (e == EFI_WRITE_PROTECTED ) Print(L" An attempt was made to create a file, or open a file for write when the media is write-protected.\n");
+		if (e == EFI_ACCESS_DENIED ) Print(L" The service denied access to the file.\n");
+		if (e == EFI_OUT_OF_RESOURCES ) Print(L" Not enough resources were available to open the file.\n");
+		if (e == EFI_VOLUME_FULL ) Print(L" The volume is full.\n");
+		Print (L" EFI_SUCCESS,EFI_NOT_FOUND,EFI_NO_MEDIA,EFI_MEDIA_CHANGED,EFI_DEVICE_ERROR,EFI_VOLUME_CORRUPTED,EFI_WRITE_PROTECTED,EFI_ACCESS_DENIED,EFI_OUT_OF_RESOURCES,EFI_VOLUME_FULL = %0x, %0x,%0x,%0x,%0x,%0x,%0x,%0x,%0x,%0x\n",EFI_SUCCESS,EFI_NOT_FOUND,EFI_NO_MEDIA,EFI_MEDIA_CHANGED,EFI_DEVICE_ERROR,EFI_VOLUME_CORRUPTED,EFI_WRITE_PROTECTED,EFI_ACCESS_DENIED,EFI_OUT_OF_RESOURCES,EFI_VOLUME_FULL);
 		return 0;
 	}
-
+	Print(L" Getting file info...\n");
 	EFI_FILE_INFO *info = LibFileInfo(handle);
 	UINTN size = info->FileSize;
+	Print(L" EFI_FILE_INFO: Size=%u\n",info->Size);
+        Print(L" EFI_FILE_INFO: FileSize=%u\n",info->FileSize);
+        Print(L" EFI_FILE_INFO: PhysicalSize=%u\n",info->PhysicalSize);
+        Print(L" EFI_FILE_INFO: CreateTime=%0x\n",info->CreateTime);
+        Print(L" EFI_FILE_INFO: LastAccessTime=%0x\n",info->LastAccessTime);
+        Print(L" EFI_FILE_INFO: ModificationTime=%0x\n",info->ModificationTime);
+        Print(L" EFI_FILE_INFO: Attribute=%u\n",info->Attribute);
+        Print(L" EFI_FILE_INFO: FileName=%s\n",info->FileName);
+
 	FreePool(info);
 
-	void* data = 0;
-	e = BS->AllocatePool(EfiBootServicesData, size + padding, &data);
+	void* data = NULL;
+//	e = BS->AllocatePool(EfiBootServicesData, size + padding, &data);
+	e = uefi_call_wrapper(BS->AllocatePool,3,EfiBootServicesData, size + padding, &data);
 	if (EFI_ERROR(e)) {
+                Print(L"LoadFileWithPadding: AllocatePool failed, error = %0x\n", e );
 		handle->Close(handle);
 		return 0;
 	}
-	e = handle->Read(handle, &size, data);
+        for (int i = 0; i < (size + padding); i++) {
+                *((char*)data + i) = 0;
+        }
+
+	e = uefi_call_wrapper(handle->Read,3,handle, &size, data);
+	if ( e == EFI_SUCCESS ) {
+		Print(L" The data was read.\n");
+		Print(L" size = %u\n",size);
+//		Print(L" data = %s\n",data);
+	} else {
+		Print (L" Read status = %0x\n",e);
+		if ( e == EFI_NO_MEDIA ) Print(L"  The device has no medium.\n");
+		if ( e == EFI_DEVICE_ERROR ) Print(L"  The device reported an error, or an attempt was made to read from a deleted file, or on entry, the current file position is beyond the end of the file.\n");
+		if ( e == EFI_VOLUME_CORRUPTED ) Print(L"  The file system structures are corrupted.\n");
+		if ( e == EFI_BUFFER_TOO_SMALL ) Print(L"  The BufferSize is too small to read the current directory entry. BufferSize has been updated with the size needed to complete the request.\n");
+		return 0;
+	}
 	for (int i = 0; i < padding; ++i) {
 		*((char*)data + size + i) = 0;
 	}
-	handle->Close(handle);
+	Print (L" Data =\n");
+	for (int i=0; i < 5; i++) {
+		Print(L" %0x",*((char*)data+i) );
+	}
+//	for (int i=3; i < (size +2); i++) {
+//		Print(L" %0x",*((char*)data+i) );
+//		Print(L"%c",*((char*)data+i) );
+//		if (!(i%30)) Print(L"\n");
+//	}
+	Print(L"\n\n");
+        for (int i=size-1; i < size+padding-1; i++) {
+                Print(L" %0x",*((char*)data+i) );
+        }
+        Print(L"\n\n");
+//	handle->Close(handle);
+	e = uefi_call_wrapper(handle->Close,1,handle);
+	Print(L" file closed, status = %0x\n",e);
 	if (EFI_ERROR(e)) {
+                Print(L"LoadFileWithPadding: Close failed, error = %0x\n", e );
 		FreePool(data);
 		return 0;
 	}
 	if (size_ptr) {
 		*size_ptr = size;
 	}
+	Print(L" returning *data\n");
 	return data;
 }

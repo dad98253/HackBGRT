@@ -326,16 +326,54 @@ void HackBgrt(EFI_FILE_HANDLE root_dir) {
 /**
  * The main program.
  */
-EFI_STATUS EFIAPI EfiMain(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *ST_) {
+//jckEFI_STATUS EFIAPI EfiMain(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *ST_) {
+EFI_STATUS EFIAPI efi_main (EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *ST_) {
+
+
+	EFI_LOADED_IMAGE *image = NULL;
+        EFI_GUID loaded_image_protocol = LOADED_IMAGE_PROTOCOL;
+        EFI_STATUS status;
+//	UINTN index;
+//	EFI_EVENT event = ST_->ConIn->WaitForKey;
+
+
 	InitializeLib(image_handle, ST_);
 
-	EFI_LOADED_IMAGE* image;
-	if (EFI_ERROR(BS->HandleProtocol(image_handle, &LoadedImageProtocol, (void**) &image))) {
-		Debug(L"HackBGRT: LOADED_IMAGE_PROTOCOL failed.\n");
+
+
+        status = uefi_call_wrapper(ST_->BootServices->HandleProtocol,
+                                3,
+                                image_handle,
+                                &loaded_image_protocol, 
+                                (void **) &image);
+        if (EFI_ERROR(status)) {
+                Print(L"handleprotocol: %r\n", status);
+                Print(L"HackBGRT: LOADED_IMAGE_PROTOCOL failed.\n");
+                Debug(L"HackBGRT: LOADED_IMAGE_PROTOCOL failed.\n");
 		goto fail;
-	}
+        }
+
+        Print(L"Image base        : %lx\n", image->ImageBase);
+        Print(L"Image size        : %lx\n", image->ImageSize);
+        Print(L"Image file        : %s\n", DevicePathToStr(image->FilePath));
+
+
+
+
+//	EFI_LOADED_IMAGE* image;
+	Print(L"HackBGRT: Started.\n");
+	Print(L"HackBGRT: image_handle = %0x.\n",image_handle);
+//	if (EFI_ERROR(BS->HandleProtocol(image_handle, &LoadedImageProtocol, (void**) &image))) {
+//		Print(L"HackBGRT: LOADED_IMAGE_PROTOCOL failed.\n");
+//		Debug(L"HackBGRT: LOADED_IMAGE_PROTOCOL failed.\n");
+//		goto fail;
+//	}
 
 	EFI_FILE_HANDLE root_dir = LibOpenRoot(image->DeviceHandle);
+
+
+	Print(L"HackBGRT: root_dir handle = %0x.\n",root_dir);
+
 
 	CHAR16 **argv;
 	int argc = GetShellArgcArgv(image_handle, &argv);
@@ -361,7 +399,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *ST_) {
 	} else {
 		Debug(L"HackBGRT: Loading application %s.\n", config.boot_path);
 		EFI_DEVICE_PATH* boot_dp = FileDevicePath(image->DeviceHandle, (CHAR16*) config.boot_path);
-		if (EFI_ERROR(BS->LoadImage(0, image_handle, boot_dp, 0, 0, &next_image_handle))) {
+		if (EFI_ERROR(uefi_call_wrapper(BS->LoadImage,6,0, image_handle, boot_dp, 0, 0, &next_image_handle))) {
 			Print(L"HackBGRT: Failed to load application %s.\n", config.boot_path);
 		}
 	}
@@ -369,7 +407,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *ST_) {
 		static CHAR16 default_boot_path[] = L"\\EFI\\HackBGRT\\bootmgfw-original.efi";
 		Debug(L"HackBGRT: Loading application %s.\n", default_boot_path);
 		EFI_DEVICE_PATH* boot_dp = FileDevicePath(image->DeviceHandle, default_boot_path);
-		if (EFI_ERROR(BS->LoadImage(0, image_handle, boot_dp, 0, 0, &next_image_handle))) {
+		if (EFI_ERROR(uefi_call_wrapper(BS->LoadImage,6,0, image_handle, boot_dp, 0, 0, &next_image_handle))) {
 			Print(L"HackBGRT: Also failed to load application %s.\n", default_boot_path);
 			goto fail;
 		}
@@ -386,7 +424,7 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *ST_) {
 			return 0;
 		}
 	}
-	if (EFI_ERROR(BS->StartImage(next_image_handle, 0, 0))) {
+	if (EFI_ERROR(uefi_call_wrapper(BS->StartImage,3,next_image_handle, 0, 0))) {
 		Print(L"HackBGRT: Failed to start %s.\n", config.boot_path);
 		goto fail;
 	}
@@ -402,8 +440,15 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *ST_) {
 			Print(L"HackBGRT version: unknown; not an official release?\n");
 		#endif
 		Print(L"Press any key to exit.\n");
+
+
+//		ST_->BootServices->WaitForEvent(1, &event, &index);
+
+
+
 		ReadKey();
 		return 1;
+//		return 0;
 	}
 }
 
@@ -412,6 +457,8 @@ EFI_STATUS EFIAPI EfiMain(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *ST_) {
  *
  * Some compilers and architectures differ in underscore handling. This helps.
  */
-EFI_STATUS EFIAPI _EfiMain(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *ST_) {
-	return EfiMain(image_handle, ST_);
+//jckEFI_STATUS EFIAPI _EfiMain(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *ST_) {
+//jck	return EfiMain(image_handle, ST_);
+EFI_STATUS EFIAPI _efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *ST_) {
+	return efi_main(image_handle, ST_);
 }
