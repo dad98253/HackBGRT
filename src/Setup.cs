@@ -141,7 +141,8 @@ public class Setup: SetupHelper {
 		if (!File.Exists(Splash)) {
 			Copy(Source + "\\splash.bmp", Splash);
 		}
-		Configure();
+		// Configure();
+		// above line commented out by jck 19SEP29 to attempt building an unattented install version
 		if (!MsLoader.ReplaceWith(NewLoader)) {
 			MsLoader.ReplaceWith(MsLoaderBackup);
 			throw new SetupException("Couldn't copy new HackBGRT over the MS loader (bootmgfw.efi).");
